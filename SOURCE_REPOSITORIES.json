@@ -1,0 +1,126 @@
+{
+  "note": "Source snapshots include local changes; commits identify upstream checkout bases, not pristine exported trees. Nested Git metadata is not included.",
+  "repositories": [
+    {
+      "path": "kv-repos/ShadowKV",
+      "upstream": "https://github.com/ByteDance-Seed/ShadowKV.git",
+      "commit": "e51904cdeab7d4d34013370f09f2cf5fcd655e15",
+      "local_tracked_changes": [
+        "kernels/copy.cuh",
+        "kernels/gather_copy.cu",
+        "models/base.py",
+        "models/kv_cache.py",
+        "models/llama.py",
+        "models/tensor_op.py"
+      ]
+    },
+    {
+      "path": "kv-repos/ShadowKV/3rdparty/cutlass",
+      "upstream": "https://github.com/NVIDIA/cutlass.git",
+      "commit": "f614dc40e17fb3ddb1b7b474318b48a8d5d21a2c",
+      "local_tracked_changes": []
+    },
+    {
+      "path": "kv-repos/ClusterKV",
+      "upstream": "https://github.com/sjtu-zhao-lab/ClusterKV.git",
+      "commit": "c7380819588771e8c5dadacdbd33942d7c53adea",
+      "local_tracked_changes": [
+        "accuracy/LongBench/pred.py",
+        "accuracy/cluster_attention.py",
+        "accuracy/patch.py",
+        "accuracy/quest_attention.py",
+        "clusterkv/clusterkv_models/ClusterKVAttention.py",
+        "clusterkv/quest_models/QuestAttention.py",
+        "clusterkv/quest_models/llama.py",
+        "clusterkv/utils/__init__.py",
+        "clusterkv/utils/controller.py",
+        "kernel/CMakeLists.txt",
+        "kernel/cmake/get_raft.cmake"
+      ]
+    },
+    {
+      "path": "kv-repos/ClusterKV/3rdparty/flashinfer",
+      "upstream": "https://github.com/flashinfer-ai/flashinfer",
+      "commit": "9f49803b1db0a40ea0019ad98b8bb5d4f1593c77",
+      "local_tracked_changes": []
+    },
+    {
+      "path": "kv-repos/ClusterKV/3rdparty/flashinfer/3rdparty/nvbench",
+      "upstream": "https://github.com/NVIDIA/nvbench.git",
+      "commit": "f57aa9c993f4392a76650bc54513f571cd1128c9",
+      "local_tracked_changes": []
+    },
+    {
+      "path": "kv-repos/ClusterKV/3rdparty/flashinfer/3rdparty/googletest",
+      "upstream": "https://github.com/google/googletest.git",
+      "commit": "40412d85124f7c6f3d88454583c4633e5e10fc8c",
+      "local_tracked_changes": []
+    },
+    {
+      "path": "kv-repos/ClusterKV/3rdparty/pybind",
+      "upstream": "https://github.com/pybind/pybind11",
+      "commit": "768cebe17e65c2a0a64ed067510729efc3c7ff6c",
+      "local_tracked_changes": []
+    },
+    {
+      "path": "kv-repos/ClusterKV/3rdparty/raft",
+      "upstream": "https://github.com/rapidsai/raft",
+      "commit": "1e4961e2354afba116e3479c5ec9041937b9922e",
+      "local_tracked_changes": []
+    },
+    {
+      "path": "kv-repos/quest",
+      "upstream": "https://github.com/mit-han-lab/quest.git",
+      "commit": "01c1623bf9395009520874e989e29f683203b357",
+      "local_tracked_changes": []
+    },
+    {
+      "path": "kv-repos/quest/kernels/3rdparty/flashinfer",
+      "upstream": "https://github.com/flashinfer-ai/flashinfer",
+      "commit": "9f49803b1db0a40ea0019ad98b8bb5d4f1593c77",
+      "local_tracked_changes": []
+    },
+    {
+      "path": "kv-repos/quest/kernels/3rdparty/flashinfer/3rdparty/nvbench",
+      "upstream": "https://github.com/NVIDIA/nvbench.git",
+      "commit": "f57aa9c993f4392a76650bc54513f571cd1128c9",
+      "local_tracked_changes": []
+    },
+    {
+      "path": "kv-repos/quest/kernels/3rdparty/flashinfer/3rdparty/googletest",
+      "upstream": "https://github.com/google/googletest.git",
+      "commit": "40412d85124f7c6f3d88454583c4633e5e10fc8c",
+      "local_tracked_changes": []
+    },
+    {
+      "path": "kv-repos/quest/kernels/3rdparty/nvbench",
+      "upstream": "https://github.com/NVIDIA/nvbench",
+      "commit": "d8dced8a64d9ce305add92fa6d274fd49b569b7e",
+      "local_tracked_changes": []
+    },
+    {
+      "path": "kv-repos/quest/kernels/3rdparty/pybind",
+      "upstream": "https://github.com/pybind/pybind11",
+      "commit": "768cebe17e65c2a0a64ed067510729efc3c7ff6c",
+      "local_tracked_changes": []
+    },
+    {
+      "path": "kv-repos/quest/kernels/3rdparty/raft",
+      "upstream": "https://github.com/rapidsai/raft",
+      "commit": "1e4961e2354afba116e3479c5ec9041937b9922e",
+      "local_tracked_changes": []
+    },
+    {
+      "path": "kv-repos/quest/kernels/3rdparty/googletest",
+      "upstream": "https://github.com/google/googletest",
+      "commit": "6a5938233b6519ba99ddb7c7314d45d3fa877969",
+      "local_tracked_changes": []
+    },
+    {
+      "path": "kv-repos/infinigen",
+      "upstream": "https://github.com/snu-comparch/infinigen.git",
+      "commit": "3754f52d131c30ab7a310e3c4cf356e8e3326ac3",
+      "local_tracked_changes": []
+    }
+  ]
+}

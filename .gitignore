@@ -1,0 +1,47 @@
+# Local repository metadata and Python/build artifacts
+**/.git
+__pycache__/
+*.py[cod]
+*.so
+*.so.*
+*.o
+*.a
+*.egg-info/
+build/
+dist/
+wheels/
+.cache/
+.pytest_cache/
+.venv/
+venv/
+node_modules/
+
+# Local measurements, downloaded datasets, weights and traces
+results/
+logs/
+output/
+outputs/
+datasets/
+*.log
+*.pt
+*.pth
+*.safetensors
+*.jsonl
+/kv-repos/bench/data/
+/kv-repos/ClusterKV/accuracy/LongBench/pred/
+/kv-repos/ClusterKV/accuracy/LongBench/pred_e/
+/kv-repos/ShadowKV/data/ruler/synthetic/json/
+
+# Local backups, editor state and credentials
+/review_backup*/
+*.orig
+*.bak
+*.sm80bak
+*~
+.DS_Store
+.vscode/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
