@@ -22,8 +22,7 @@ import gc
 import time
 
 import transformers
-from transformers import Qwen2ForCausalLM, Qwen2Config, AutoTokenizer
-from transformers.models.qwen2.modeling_qwen2 import Qwen2DecoderLayer
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 transformers.logging.set_verbosity_error()
 
 from .tensor_op import layer_norm, apply_rotary_pos_emb, apply_rotary_pos_emb_single, sample_token
@@ -54,7 +53,7 @@ class Qwen2Layer:
 
         self.layer_idx = layer_idx
 
-    def init_parameters(self, hf_layer: Qwen2DecoderLayer):
+    def init_parameters(self, hf_layer):
 
         self.wq :torch.Tensor= hf_layer.self_attn.q_proj.weight.detach()
         self.wk :torch.Tensor= hf_layer.self_attn.k_proj.weight.detach()
@@ -62,9 +61,18 @@ class Qwen2Layer:
         self.wo :torch.Tensor= hf_layer.self_attn.o_proj.weight.detach()
 
         # bias for qkv
-        self.bq = hf_layer.self_attn.q_proj.bias.detach()
-        self.bk = hf_layer.self_attn.k_proj.bias.detach()
-        self.bv = hf_layer.self_attn.v_proj.bias.detach()
+        self.bq = self._optional_bias(hf_layer.self_attn.q_proj)
+        self.bk = self._optional_bias(hf_layer.self_attn.k_proj)
+        self.bv = self._optional_bias(hf_layer.self_attn.v_proj)
+
+        # Qwen3 applies RMSNorm independently to every projected Q/K head.
+        # Qwen2 has no corresponding modules, so these fields remain None.
+        q_norm = getattr(hf_layer.self_attn, "q_norm", None)
+        k_norm = getattr(hf_layer.self_attn, "k_norm", None)
+        self.q_norm_weight = None if q_norm is None else q_norm.weight.detach()
+        self.k_norm_weight = None if k_norm is None else k_norm.weight.detach()
+        self.q_norm_eps = None if q_norm is None else q_norm.variance_epsilon
+        self.k_norm_eps = None if k_norm is None else k_norm.variance_epsilon
 
         self.gate_proj = hf_layer.mlp.gate_proj.weight.detach()
         self.up_proj = hf_layer.mlp.up_proj.weight.detach()
@@ -75,6 +83,10 @@ class Qwen2Layer:
 
         self.post_attention_layernorm_weight = hf_layer.post_attention_layernorm.weight
         self.post_attention_layernorm_variance_epsilon = hf_layer.post_attention_layernorm.variance_epsilon
+
+    @staticmethod
+    def _optional_bias(linear):
+        return None if linear.bias is None else linear.bias.detach()
     
     def init_gpu(self, device:str = 'cuda:0'):
 
@@ -88,9 +100,16 @@ class Qwen2Layer:
         self.up_proj = self.up_proj.to(device, non_blocking=True)
         self.down_proj =  self.down_proj.to(device, non_blocking=True)
 
-        self.bq = self.bq.to(device, non_blocking=True)
-        self.bk = self.bk.to(device, non_blocking=True)
-        self.bv = self.bv.to(device, non_blocking=True)
+        if self.bq is not None:
+            self.bq = self.bq.to(device, non_blocking=True)
+        if self.bk is not None:
+            self.bk = self.bk.to(device, non_blocking=True)
+        if self.bv is not None:
+            self.bv = self.bv.to(device, non_blocking=True)
+        if self.q_norm_weight is not None:
+            self.q_norm_weight = self.q_norm_weight.to(device, non_blocking=True)
+        if self.k_norm_weight is not None:
+            self.k_norm_weight = self.k_norm_weight.to(device, non_blocking=True)
 
 class Qwen2(LLM):
     def __init__(self, 
@@ -109,13 +128,15 @@ class Qwen2(LLM):
         self.batch_size = batch_size
         self.device = device
         self.dtype = dtype
-        self.config = Qwen2Config.from_pretrained(model_name)
+        self.config = AutoConfig.from_pretrained(model_name)
+        if self.config.model_type not in ("qwen2", "qwen3"):
+            raise ValueError(f"Expected qwen2/qwen3, got {self.config.model_type}")
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True, legacy=False)
         self.max_length = max_length
         self.hidden_size = self.config.hidden_size
         self.num_heads = self.config.num_attention_heads
-        self.head_dim = self.hidden_size // self.num_heads
+        self.head_dim = getattr(self.config, "head_dim", self.hidden_size // self.num_heads)
         self.num_key_value_heads = self.config.num_key_value_heads
         self.num_key_value_groups = self.num_heads // self.num_key_value_heads
         self.max_position_embeddings = self.config.max_position_embeddings
@@ -137,12 +158,17 @@ class Qwen2(LLM):
         return emb.cos().to(self.dtype), emb.sin().to(self.dtype)
 
     def init_parameters(self):
-        hf_model = Qwen2ForCausalLM.from_pretrained(self.model_name, torch_dtype=self.dtype)
+        hf_model = AutoModelForCausalLM.from_pretrained(self.model_name, torch_dtype=self.dtype)
         self.embed_tokens = hf_model.model.embed_tokens.weight.detach().to(self.device)
         self.lm_head = hf_model.lm_head.weight.detach().to(self.device)
         self.norm_weight = hf_model.model.norm.weight.detach().to(self.device)
         self.norm_variance_epsilon = hf_model.model.norm.variance_epsilon
-        self.cos_cache, self.sin_cache = self._set_cos_sin_cache(hf_model.model.layers[0].self_attn.rotary_emb.inv_freq.to(self.device))
+        rotary = getattr(hf_model.model.layers[0].self_attn, "rotary_emb", None)
+        if rotary is None:
+            rotary = hf_model.model.rotary_emb
+        self.cos_cache, self.sin_cache = self._set_cos_sin_cache(
+            rotary.inv_freq.to(self.device)
+        )
         self.layers :list[Qwen2Layer] = []
 
         for idx, hf_layer in enumerate(hf_model.model.layers):
@@ -168,10 +194,22 @@ class Qwen2(LLM):
         query_states = F.linear(hidden_states, buffer.wq, bias=buffer.bq)
         key_states = F.linear(hidden_states, buffer.wk, bias=buffer.bk)
         value_states = F.linear(hidden_states, buffer.wv, bias=buffer.bv)
-        query_states = query_states.view(bsz, q_len, num_heads, head_dim).transpose(1, 2)
-        key_states = key_states.view(bsz, q_len, num_key_value_heads, head_dim).transpose(1, 2)
-        value_states = value_states.view(bsz, q_len, num_key_value_heads, head_dim).transpose(1, 2)
-        return query_states, key_states, value_states
+        query_states = query_states.view(bsz, q_len, num_heads, head_dim)
+        key_states = key_states.view(bsz, q_len, num_key_value_heads, head_dim)
+        value_states = value_states.view(bsz, q_len, num_key_value_heads, head_dim)
+        if buffer.q_norm_weight is not None:
+            query_states = layer_norm(
+                query_states, buffer.q_norm_eps, buffer.q_norm_weight
+            )
+        if buffer.k_norm_weight is not None:
+            key_states = layer_norm(
+                key_states, buffer.k_norm_eps, buffer.k_norm_weight
+            )
+        return (
+            query_states.transpose(1, 2),
+            key_states.transpose(1, 2),
+            value_states.transpose(1, 2),
+        )
     
     def post_attention_compute(
         self,

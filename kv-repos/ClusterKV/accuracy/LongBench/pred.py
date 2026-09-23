@@ -36,9 +36,18 @@ def parse_args(args=None):
 
 # This is the customized building prompt for chat models
 def build_chat(tokenizer, prompt, model_name):
-    if "glm4" in model_name or "intern" in model_name or "llama3" in model_name:
-        prompt = tokenizer.apply_chat_template([{"role": "user", "content": prompt}],
-                                                add_generation_prompt=True, tokenize=False)
+    if any(name in model_name for name in ("glm4", "intern", "llama3", "qwen3")):
+        template_args = {}
+        if "qwen3" in model_name:
+            # Qwen3 otherwise starts a thinking trace, which consumes the short
+            # answer budget used by LongBench QA tasks.
+            template_args["enable_thinking"] = False
+        prompt = tokenizer.apply_chat_template(
+            [{"role": "user", "content": prompt}],
+            add_generation_prompt=True,
+            tokenize=False,
+            **template_args,
+        )
     return prompt
 
 
@@ -169,8 +178,8 @@ if __name__ == "__main__":
     seed_everything(42)
     args = parse_args()
     if args.strict_total_budget and (args.quest or args.cluster):
-        if "llama" not in args.model or args.gqa_policy != "qavg":
-            raise ValueError("strict accuracy currently supports Llama with --gqa_policy qavg")
+        if not any(name in args.model for name in ("llama", "qwen3")) or args.gqa_policy != "qavg":
+            raise ValueError("strict accuracy requires Llama/Qwen3 with --gqa_policy qavg")
         if args.cluster and not 0 <= args.sink < args.token_budget:
             raise ValueError("sink must be smaller than the complete token budget")
         if args.quest and (args.token_budget < 3 * args.chunk_size or args.token_budget % args.chunk_size):

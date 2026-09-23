@@ -1,5 +1,10 @@
+import inspect
 import types
 from transformers.models.llama.modeling_llama import LlamaAttention
+try:
+    from transformers.models.qwen3.modeling_qwen3 import Qwen3Attention
+except ImportError:
+    Qwen3Attention = None
 from accuracy.quest_attention import forward_quest, forward_quest_glm
 from accuracy.cluster_attention import forward_cluster, forward_cluster_glm, apply_cluster_config
 from accuracy.recall_stats import new_recall_stats
@@ -18,6 +23,7 @@ def parse_common_args(parser):
             "llama3.1-8b-chat-4k",
             "llama3.1-8b-chat-8k",
             "llama3.1-8b-chat-32k",
+            "qwen3-8b-chat-32k",
             "glm4-9b-chat-4k",
             "glm4-9b-chat-8k",
             "glm4-9b-chat-32k",
@@ -61,9 +67,24 @@ def enable_attention_eval(model_name, model, args):
             enable_attention_eval(model_name, module, args)
 
         global layer_id
-        if isinstance(module, LlamaAttention):
-            layer_id -= 1
-            module.layer_id = layer_id
+        attention_types = (LlamaAttention,)
+        if Qwen3Attention is not None:
+            attention_types += (Qwen3Attention,)
+        if isinstance(module, attention_types):
+            fallback_layer_id = layer_id - 1
+            layer_id = fallback_layer_id
+            module.layer_id = getattr(module, "layer_idx", fallback_layer_id)
+            module._bypasskv_model_type = getattr(module.config, "model_type", "llama")
+            module._bypasskv_cache_argument = (
+                "past_key_values"
+                if "past_key_values" in inspect.signature(module.forward).parameters
+                else "past_key_value"
+            )
+            module.num_heads = getattr(module, "num_heads", module.config.num_attention_heads)
+            module.num_key_value_heads = getattr(
+                module, "num_key_value_heads", module.config.num_key_value_heads
+            )
+            module.num_key_value_groups = module.num_heads // module.num_key_value_heads
             module.flash_forward = module.forward
             module.cache_steps = args.cache_steps
             module.token_budget = args.token_budget

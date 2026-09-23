@@ -1,10 +1,17 @@
 # 本地共享预算精度对比 v2
 
-入口：`run_hotpotqa_accuracy_128_fair.sh`。默认新建 `results/hotpotqa_k128_fair_v2_<时间>/`，不会覆盖旧结果。新增的 `--strict_total_budget` 开关只用于精度对比；不加开关可复现旧版。
+入口：`run_hotpotqa_accuracy_128_fair.sh`。默认新建
+`results/hotpotqa_<模型>_k128_fair_v2_<时间>/`，不会覆盖旧结果。新增的
+`--strict_total_budget` 开关只用于精度对比；不加开关可复现旧版。
 
 ## 预算与选择范围
 
-所有方法使用相同 Llama-3.1-8B-Instruct、BF16、HotpotQA 输入顺序、31500 token 输入上限和最多 32 个输出 token。prefill 保持完整注意力；稀疏 decode 覆盖所有层，包括前两层。每个 KV head 的所有 query heads 共用一份选择结果；各 query head 仍独立计算最终 attention。
+同一次实验中的所有方法使用相同模型、BF16、HotpotQA 输入顺序、
+31500 token 输入上限和最多 32 个输出 token。当前支持
+Llama-3.1-8B-Instruct 和 Qwen3-8B。prefill 保持完整注意力；稀疏 decode
+覆盖所有层，包括前两层。每个 KV head 的所有 query heads 共用一份选择
+结果；各 query head 仍独立计算最终 attention。Qwen3 显式关闭 thinking
+模式，避免思考文本占用短答案预算。
 
 | 方法 | 共享选择规则 | 新生成 token | 每 KV head 的 decode 上限 |
 |---|---|---|---|
@@ -32,6 +39,10 @@ Quest/ShadowKV 选到未满的尾块时，有效 token 数可能少于 128。Sha
 - `test_total_budget_cluster.py`：新 token 可选中/可淘汰、共享选择集合、精确 Naive，以及输出对照显式 attention。
 - `test_total_budget_forward.py`：小型随机权重 Llama 的实际 BF16/SDPA forward；120 和 151 token prompt、连续 16 次 decode，覆盖跨越 128 预算边界、前两层、动态簇索引。
 - `kv-repos/ShadowKV/test/test_total_budget.py`：连续 20 步更新、未满 chunk、padding 掩码、缓存重置，以及真实 Llama head 形状的 BF16/CUDA RoPE 与低秩重建。
+- Qwen3 Quest 兼容检查：随机两层 Qwen3 完成 prefill 和连续 decode；当预算
+  覆盖全部历史时，原生模型与补丁模型的 prefill/decode logits 最大误差均为 0。
+- Qwen3 ShadowKV 投影检查：Qwen3 的无 bias Q/K/V 投影及逐 head Q/K
+  RMSNorm 与原生实现逐项对比，最大误差均为 0。
 
 ## 运行
 
@@ -40,5 +51,15 @@ Quest/ShadowKV 选到未满的尾块时，有效 token 数可能少于 128。Sha
 ```bash
 CUDA_VISIBLE_DEVICES=1 bash /home/zrd/bypasskv_repo/run_hotpotqa_accuracy_128_fair.sh 200
 ```
+
+Qwen3-8B 使用独立环境，不会改变原有 Llama 环境：
+
+```bash
+ACCURACY_MODEL=qwen3-8b CUDA_VISIBLE_DEVICES=1 bash /home/zrd/bypasskv_repo/run_hotpotqa_accuracy_128_fair.sh 200
+```
+
+Qwen3 的 ClusterKV/Quest 和 ShadowKV 分别使用
+`/home/zrd/miniconda3/envs/clusterkv-qwen3` 与
+`/home/zrd/miniconda3/envs/ShadowKV-qwen3`；两者均固定 Transformers 4.53.3。
 
 只做数据集冒烟检查时将 `200` 改为 `1`。脚本依次运行 FullKV、Naive、Quest、ClusterKV、ShadowKV，并输出 `accuracy_summary.csv` 和 `recall_summary.csv`。

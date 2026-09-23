@@ -13,6 +13,13 @@ from transformers.cache_utils import DynamicCache
 from .cluster_cache_simulator import CacheSimulator
 from .gqa_utils import average_query_heads, repeat_kv_head_selection
 from .recall_stats import update_from_mask
+from .attention_compat import (
+    apply_rope,
+    call_dense_attention,
+    extract_cache,
+    format_sparse_output,
+    project_qkv,
+)
 
 def local_heavy_hitter_mask(attn_weights, token_budget, chunk_size):
     # attn_weights (BS, head, query, keys)
@@ -236,6 +243,8 @@ def forward_quest(
     **kwargs,
 ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
     bsz, q_len, _ = hidden_states.size()
+    position_embeddings = kwargs.pop("position_embeddings", None)
+    past_key_value = extract_cache(past_key_value, kwargs)
 
     strict = getattr(self, "strict_total_budget", False)
     if strict and (self.gqa_policy != "qavg" or self.gen):
@@ -252,35 +261,15 @@ def forward_quest(
             # reset cache for each request
             if self.cache_steps > 0 and self.layer_id >= 2:
                 self.cluster_cache = CacheSimulator(self.layer_id, self.cache_steps+1)
-        return self.flash_forward(
-            hidden_states,
-            attention_mask,
-            position_ids,
-            past_key_value,
-            output_attentions,
-            use_cache,
-            **kwargs,
+        return call_dense_attention(
+            self, hidden_states, attention_mask, position_ids, past_key_value,
+            output_attentions, use_cache, position_embeddings, kwargs,
         )
 
-    query_states = (
-        self.q_proj(hidden_states)
-        .view(bsz, q_len, self.num_heads, self.head_dim)
-        .transpose(1, 2)
-    )
-    key_states = (
-        self.k_proj(hidden_states)
-        .view(bsz, q_len, self.num_key_value_heads, self.head_dim)
-        .transpose(1, 2)
-    )
-    value_states = (
-        self.v_proj(hidden_states)
-        .view(bsz, q_len, self.num_key_value_heads, self.head_dim)
-        .transpose(1, 2)
-    )
-
-    cos, sin = self.rotary_emb(value_states, position_ids)
-    query_states, key_states = apply_rotary_pos_emb(
-        query_states, key_states, cos, sin, position_ids
+    query_states, key_states, value_states = project_qkv(self, hidden_states)
+    query_states, key_states = apply_rope(
+        self, query_states, key_states, value_states,
+        position_ids, position_embeddings,
     )
     # [bsz, nh, t, hd]
 
@@ -298,10 +287,7 @@ def forward_quest(
                                  self.num_key_value_groups, self.gqa_policy)
     attn_output = self.o_proj(attn_output)
 
-    if not output_attentions:
-        attn_weights = None
-
-    return attn_output, attn_weights, past_key_value
+    return format_sparse_output(self, attn_output, past_key_value)
 
 def split_tensor_along_last_dim(
         tensor: torch.Tensor,

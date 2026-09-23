@@ -122,10 +122,14 @@ def main():
             if row_id in completed:
                 continue
             prompt = row["context"] + row["question"] + row["answer_prefix"]
+            template_args = {}
+            if "qwen3" in args.model_name.lower():
+                template_args["enable_thinking"] = False
             prompt = model.tokenizer.apply_chat_template(
                 [{"role": "user", "content": prompt}],
                 add_generation_prompt=True,
                 tokenize=False,
+                **template_args,
             )
             input_ids = model.tokenizer(
                 prompt, return_tensors="pt", add_special_tokens=False

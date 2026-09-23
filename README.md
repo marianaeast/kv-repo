@@ -3,6 +3,9 @@
 本仓库保存本地修改后的 KV-cache 对比方法、精度评测和性能实验代码。
 
 - 最新共享预算精度版：[ACCURACY_FAIR_V2.md](ACCURACY_FAIR_V2.md)，入口 `run_hotpotqa_accuracy_128_fair.sh`。
+- 共享预算精度入口支持 `ACCURACY_MODEL=llama3.1-8b`（默认）和
+  `ACCURACY_MODEL=qwen3-8b`；Qwen3 使用独立 Conda 环境，不改动 Llama
+  复现实验的依赖。
 - 性能实验入口：`run_bd_32k.sh`。性能路径尚未接入精度 v2 的全部预算规则，不能用精度脚本耗时替代性能实验。
 - `kv-repos/` 中各项目和已下载的依赖均按源码快照纳入版本管理，包含本地修改；上游版本记录在 `SOURCE_REPOSITORIES.json`，许可证保留在各项目内。
 - 本机原有嵌套 Git 元数据保留，但不上传，也不作为新仓库的 submodule。克隆本仓库即可获得已纳入的源码；内层 `.gitmodules` 是上游配置留档。
